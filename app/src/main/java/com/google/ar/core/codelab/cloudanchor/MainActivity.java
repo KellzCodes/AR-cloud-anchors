@@ -142,7 +142,14 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   }
 
   private void onResolveOkPressed(String dialogValue) {
-        // TODO: We'll add more code here later...
+      int shortCode = Integer.parseInt(dialogValue);
+      String cloudAnchorId = storageManager.getCloudAnchorID(this, shortCode);
+      synchronized (singleTapAnchorLock) {
+          Anchor resolvedAnchor = session.resolveCloudAnchor(cloudAnchorId);
+          setNewAnchor(resolvedAnchor);
+          snackbarHelper.showMessage(this, "Now resolving anchor...");
+          appAnchorState = AppAnchorState.RESOLVING;
+      }
   }
 
   @Override
@@ -329,21 +336,31 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     GLES20.glViewport(0, 0, width, height);
   }
 
-  private void checkUpdatedAnchor(){
-      synchronized (singleTapAnchorLock){
-          if(appAnchorState != AppAnchorState.HOSTING){
+  private void checkUpdatedAnchor() {
+      synchronized (singleTapAnchorLock) {
+          if (appAnchorState != AppAnchorState.HOSTING && appAnchorState != AppAnchorState.RESOLVING) {
               return;
           }
           Anchor.CloudAnchorState cloudState = anchor.getCloudAnchorState();
-          if(cloudState.isError()){
-              snackbarHelper.showMessageWithDismiss(this, "Error hosting anchor: " +
-                      cloudState);
-          }else if (cloudState == Anchor.CloudAnchorState.SUCCESS){
-              int shortCode = storageManager.nextShortCode(this);
-              storageManager.storeUsingShortCode(this, shortCode, anchor.getCloudAnchorId());
-              snackbarHelper.showMessageWithDismiss(this, "Anchor hosted successfully! " +
-                      "Cloud ID: " + shortCode);
-              appAnchorState = AppAnchorState.HOSTED;
+          if (appAnchorState == AppAnchorState.HOSTING) {
+              if (cloudState.isError()) {
+                  snackbarHelper.showMessageWithDismiss(this, "Error hosting anchor: " + cloudState);
+                  appAnchorState = AppAnchorState.NONE;
+              }else if (cloudState == Anchor.CloudAnchorState.SUCCESS) {
+                  int shortCode = storageManager.nextShortCode(this);
+                  storageManager.storeUsingShortCode(this, shortCode, anchor.getCloudAnchorId());
+                  snackbarHelper.showMessageWithDismiss(
+                          this, "Anchor hosted successfully! Cloud Short Code: " + shortCode);
+                  appAnchorState = AppAnchorState.HOSTED;
+              }
+          } else if (appAnchorState == AppAnchorState.RESOLVING) {
+              if (cloudState.isError()) {
+                  snackbarHelper.showMessageWithDismiss(this, "Error resolving anchor: " + cloudState);
+                  appAnchorState = AppAnchorState.NONE;
+                } else if (cloudState == Anchor.CloudAnchorState.SUCCESS) {
+                  snackbarHelper.showMessageWithDismiss(this, "Anchor resolved successfully!");
+                  appAnchorState = AppAnchorState.RESOLVED;
+              }
           }
       }
   }
@@ -441,7 +458,9 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   private enum AppAnchorState{
       NONE,
       HOSTING,
-      HOSTED
+      HOSTED,
+      RESOLVING,
+      RESOLVED
   }
 
   @GuardedBy("singleTapAnchorLock")
