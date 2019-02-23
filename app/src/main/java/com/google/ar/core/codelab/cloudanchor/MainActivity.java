@@ -94,6 +94,9 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
   private Session session;
   private boolean installRequested;
 
+  private final StorageManager storageManager = new StorageManager();
+
+
   @Nullable
   @GuardedBy("singleTapAnchorLock")
   private Anchor anchor;
@@ -318,8 +321,10 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
               snackbarHelper.showMessageWithDismiss(this, "Error hosting anchor: " +
                       cloudState);
           }else if (cloudState == Anchor.CloudAnchorState.SUCCESS){
+              int shortCode = storageManager.nextShortCode(this);
+              storageManager.storeUsingShortCode(this, shortCode, anchor.getCloudAnchorId());
               snackbarHelper.showMessageWithDismiss(this, "Anchor hosted successfully! " +
-                      "Cloud ID: " + anchor.getCloudAnchorId());
+                      "Cloud ID: " + shortCode);
               appAnchorState = AppAnchorState.HOSTED;
           }
       }
