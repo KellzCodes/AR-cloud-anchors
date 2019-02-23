@@ -103,11 +103,15 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     synchronized (singleTapAnchorLock) {
       if (anchor == null
           && queuedSingleTap != null
-          && currentTrackingState == TrackingState.TRACKING) {
+          && currentTrackingState == TrackingState.TRACKING
+            && appAnchorState == AppAnchorState.NONE) {
         for (HitResult hit : currentFrame.hitTest(queuedSingleTap)) {
           if (shouldCreateAnchorWithHit(hit)) {
-            Anchor newAnchor = hit.createAnchor();
+            Anchor newAnchor = session.hostCloudAnchor(hit.createAnchor());
             setNewAnchor(newAnchor);
+
+            appAnchorState = AppAnchorState.HOSTING;
+            snackbarHelper.showMessage(this, "Now hosting anchor");
             break;
           }
         }
@@ -224,6 +228,7 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
 
       // Create default config and check if supported.
       Config config = new Config(session);
+      config.setCloudAnchorMode(Config.CloudAnchorMode.ENABLED);
       session.configure(config);
     }
 
@@ -303,6 +308,23 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     GLES20.glViewport(0, 0, width, height);
   }
 
+  private void checkUpdatedAnchor(){
+      synchronized (singleTapAnchorLock){
+          if(appAnchorState != AppAnchorState.HOSTING){
+              return;
+          }
+          Anchor.CloudAnchorState cloudState = anchor.getCloudAnchorState();
+          if(cloudState.isError()){
+              snackbarHelper.showMessageWithDismiss(this, "Error hosting anchor: " +
+                      cloudState);
+          }else if (cloudState == Anchor.CloudAnchorState.SUCCESS){
+              snackbarHelper.showMessageWithDismiss(this, "Anchor hosted successfully! " +
+                      "Cloud ID: " + anchor.getCloudAnchorId());
+              appAnchorState = AppAnchorState.HOSTED;
+          }
+      }
+  }
+
   @Override
   public void onDrawFrame(GL10 gl) {
     // Clear screen to notify driver it should not load any pixels from previous frame.
@@ -324,6 +346,7 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       Frame frame = session.update();
       Camera camera = frame.getCamera();
       TrackingState cameraTrackingState = camera.getTrackingState();
+      checkUpdatedAnchor();
 
       // Handle taps.
       handleTapOnDraw(cameraTrackingState, frame);
@@ -388,5 +411,16 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
       anchor.detach();
     }
     anchor = newAnchor;
+    appAnchorState = AppAnchorState.NONE;
+    snackbarHelper.hide(this);
   }
+
+  private enum AppAnchorState{
+      NONE,
+      HOSTING,
+      HOSTED
+  }
+
+  @GuardedBy("singleTapAnchorLock")
+  private AppAnchorState appAnchorState = AppAnchorState.NONE;
 }
