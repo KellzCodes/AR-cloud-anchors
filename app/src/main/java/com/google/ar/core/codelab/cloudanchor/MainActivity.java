@@ -141,6 +141,10 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
     return false;
   }
 
+  private void onResolveOkPressed(String dialogValue) {
+        // TODO: We'll add more code here later...
+  }
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -184,6 +188,20 @@ public class MainActivity extends AppCompatActivity implements GLSurfaceView.Ren
             setNewAnchor(null);
           }
         });
+
+    Button resolveButton = findViewById(R.id.resolve_button);
+    resolveButton.setOnClickListener(
+            (unusedView) -> {
+                synchronized (singleTapAnchorLock) {
+                    if (anchor != null) {
+                        snackbarHelper.showMessageWithDismiss(this, "Please clear anchor first.");
+                        return;
+                    }
+                }
+                ResolveDialogFragment dialog = new ResolveDialogFragment();
+                dialog.setOkListener(this::onResolveOkPressed);
+                dialog.show(getSupportFragmentManager(), "Resolve");
+            });
   }
 
   @Override
